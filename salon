@@ -1,0 +1,165 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Salón Imperial</title>
+<style>
+body{margin:0;font-family:Arial,sans-serif;background:#f7f4ee;color:#222}
+header{background:linear-gradient(135deg,#765200,#d4af37,#765200);color:#fff;text-align:center;padding:35px 15px}
+.logo{font-size:40px}.brand{font-size:32px;font-weight:800}
+nav{display:flex;gap:7px;padding:10px;background:#fff;position:sticky;top:0;z-index:10}
+nav button{flex:1;padding:11px;border:0;border-radius:10px;font-weight:bold;cursor:pointer}
+nav .on{background:#b88a16;color:#fff}
+main{max-width:720px;margin:20px auto;padding:0 14px}
+.page{display:none}.page.on{display:block}
+.card{background:#fff;border-radius:20px;padding:20px;margin-bottom:16px;box-shadow:0 5px 20px #0001}
+label{display:block;font-weight:bold;margin:12px 0 6px}
+input,select,textarea{width:100%;padding:13px;border:1px solid #ddd;border-radius:11px;font-size:16px;box-sizing:border-box}
+button.primary{width:100%;padding:14px;border:0;border-radius:11px;background:#b88a16;color:#fff;font-size:17px;font-weight:bold;margin-top:14px;cursor:pointer}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.stat{text-align:center;background:#faf7ef;border-radius:13px;padding:14px}
+.stat b{display:block;font-size:24px}
+.res{border:1px solid #ddd;border-radius:13px;padding:13px;margin:9px 0}
+.actions{display:flex;gap:8px;margin-top:9px}
+.actions button{flex:1;padding:9px;border:0;border-radius:9px;cursor:pointer}
+.ok{background:#d9f1dc}.no{background:#f5d6d2}
+.badge{padding:3px 7px;border-radius:7px;font-size:11px;background:#eee}
+.pending{background:#fff0c2}.confirmed{background:#d9f1dc}.cancelled{background:#f5d6d2}
+.calendar{display:grid;grid-template-columns:repeat(7,1fr);gap:5px}
+.day{min-height:45px;border:0;border-radius:8px;background:#dcefdc;cursor:pointer}
+.day.booked{background:#e7b8b3}
+.dow{text-align:center;font-size:11px;color:#777}
+.muted{opacity:.25}.small{font-size:13px;color:#777}
+.empty{text-align:center;color:#777;padding:20px}
+footer{text-align:center;color:#777;padding:25px}
+</style>
+</head>
+<body>
+<header>
+  <div class="logo">👑</div>
+  <div class="brand">Salón Imperial</div>
+  <div>Reserva tu evento</div>
+</header>
+<nav>
+  <button id="bres" class="on" onclick="show('res')">📅 Reservar</button>
+  <button id="bcal" onclick="show('cal')">🗓️ Calendario</button>
+  <button id="badm" onclick="show('adm')">🔐 Admin</button>
+</nav>
+<main>
+  <section id="res" class="page on">
+    <div class="card">
+      <h2>Solicita tu reserva</h2>
+      <label>Nombre *</label><input id="nombre">
+      <label>Teléfono *</label><input id="tel" type="tel">
+      <label>Fecha *</label><input id="fecha" type="date">
+      <label>Hora *</label><input id="hora" type="time">
+      <label>Tipo de evento</label>
+      <select id="tipo"><option>Cumpleaños</option><option>XV años</option><option>Graduación</option><option>Boda</option><option>Baby shower</option><option>Otro</option></select>
+      <label>Invitados</label><input id="invitados" type="number" min="1">
+      <label>Mensaje</label><textarea id="mensaje" rows="3"></textarea>
+      <button class="primary" onclick="reservar()">Enviar solicitud</button>
+      <p id="msg" class="small"></p>
+    </div>
+  </section>
+  <section id="cal" class="page">
+    <div class="card">
+      <h2>🗓️ Disponibilidad</h2>
+      <p class="small">🟩 Disponible · 🟥 Confirmada</p>
+      <div id="calendar"></div>
+    </div>
+    <div class="card">
+      <h2>Próximas reservas</h2>
+      <div id="publicList"></div>
+    </div>
+  </section>
+  <section id="adm" class="page">
+    <div id="login" class="card">
+      <h2>🔐 Administrador</h2>
+      <input id="pass" type="password" placeholder="Contraseña">
+      <button class="primary" onclick="login()">Entrar</button>
+      <p id="err" class="small"></p>
+    </div>
+    <div id="panel" style="display:none">
+      <div class="card">
+        <h2>📊 Resumen</h2>
+        <div class="grid">
+          <div class="stat"><b id="tot">0</b>Solicitudes</div>
+          <div class="stat"><b id="pen">0</b>Pendientes</div>
+          <div class="stat"><b id="con">0</b>Confirmadas</div>
+          <div class="stat"><b id="can">0</b>Canceladas</div>
+        </div>
+      </div>
+      <div class="card">
+        <h2>📋 Reservas</h2>
+        <div id="list"></div>
+      </div>
+      <div class="card">
+        <button class="primary" onclick="logout()">Cerrar sesión</button>
+      </div>
+    </div>
+  </section>
+</main>
+<footer>© 2026 Salón Imperial</footer>
+<script>
+const KEY='salonImperialReservas',ADMIN='imperial21';
+let rs=JSON.parse(localStorage.getItem(KEY)||'[]'),logged=false;
+const $=id=>document.getElementById(id);
+function save(){localStorage.setItem(KEY,JSON.stringify(rs))}
+function show(x){
+  document.querySelectorAll('.page').forEach(e=>e.classList.remove('on'));
+  $(x).classList.add('on');
+  ['res','cal','adm'].forEach(y=>$('b'+y).classList.remove('on'));$('b'+x).classList.add('on');
+  if(x==='cal')renderCal();
+  if(x==='adm')renderAdmin();
+}
+function reservar(){
+  let n=$('nombre').value.trim(),t=$('tel').value.trim(),f=$('fecha').value,h=$('hora').value;
+  if(!n||!t||!f||!h){$('msg').textContent='Completa los campos obligatorios.';return}
+  if(rs.some(r=>r.fecha===f&&r.estado==='confirmada')){$('msg').textContent='Esa fecha ya está ocupada.';return}
+  rs.push({id:Date.now(),nombre:n,tel:t,fecha:f,hora:h,tipo:$('tipo').value,invitados:$('invitados').value,mensaje:$('mensaje').value,estado:'pendiente'});
+  save();
+  $('msg').textContent='✅ Solicitud enviada. Queda pendiente de confirmación.';
+  ['nombre','tel','fecha','hora','invitados','mensaje'].forEach(x=>$(x).value='');
+}
+function login(){
+  if($('pass').value===ADMIN){logged=true;$('login').style.display='none';$('panel').style.display='block';renderAdmin()}
+  else $('err').textContent='Contraseña incorrecta.';
+}
+function logout(){logged=false;$('panel').style.display='none';$('login').style.display='block';$('pass').value=''}
+function esc(x){return String(x||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]))}
+function card(r){
+  return `<div class="res"><b>${esc(r.nombre)}</b> <span class="badge ${r.estado}">${r.estado}</span><br>📅 ${esc(r.fecha)} · 🕓 ${esc(r.hora)} · 🎉 ${esc(r.tipo)}<br>📞 ${esc(r.tel)} · 👥 ${esc(r.invitados||'No indicado')} ${r.mensaje?'<br>💬 '+esc(r.mensaje):''}${r.estado==='pendiente'?`<div class="actions"><button class="ok" onclick="state(${r.id},'confirmada')">Confirmar</button><button class="no" onclick="state(${r.id},'cancelada')">Cancelar</button></div>`:`<div class="actions"><button onclick="del(${r.id})">Eliminar</button></div>`}</div>`;
+}
+function state(id,e){
+  let r=rs.find(x=>x.id===id);
+  if(e==='confirmada'&&rs.some(x=>x.id!==id&&x.fecha===r.fecha&&x.estado==='confirmada')){alert('Ya hay una reserva confirmada ese día.');return}
+  r.estado=e;save();renderAdmin();renderCal();
+}
+function del(id){
+  if(confirm('¿Eliminar esta reserva?')){rs=rs.filter(x=>x.id!==id);save();renderAdmin();renderCal()}
+}
+function renderAdmin(){
+  if(!logged)return;
+  $('tot').textContent=rs.length;
+  $('pen').textContent=rs.filter(r=>r.estado==='pendiente').length;
+  $('con').textContent=rs.filter(r=>r.estado==='confirmada').length;
+  $('can').textContent=rs.filter(r=>r.estado==='cancelada').length;
+  $('list').innerHTML=rs.length?rs.slice().sort((a,b)=>a.fecha.localeCompare(b.fecha)).map(card).join(''):'<div class="empty">No hay solicitudes.</div>';
+}
+function renderCal(){
+  let d=new Date(),y=d.getFullYear(),m=d.getMonth(),first=new Date(y,m,1).getDay(),days=new Date(y,m+1,0).getDate(),s='<h3 style="text-align:center">'+d.toLocaleDateString('es-MX',{month:'long',year:'numeric'})+'</h3><div class="calendar">';
+  ['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'].forEach(x=>s+='<div class="dow">'+x+'</div>');
+  for(let i=0;i<first;i++)s+='<div class="day muted"></div>';
+  for(let n=1;n<=days;n++){
+    let date=`${y}-${String(m+1).padStart(2,'0')}-${String(n).padStart(2,'0')}`,book=rs.some(r=>r.fecha===date&&r.estado==='confirmada');
+    s+=`<button class="day ${book?'booked':''}" onclick="$('fecha').value='${date}';show('res')">${n}</button>`;
+  }
+  s+='</div>';
+  $('calendar').innerHTML=s;
+  $('publicList').innerHTML=rs.filter(r=>r.estado==='confirmada').sort((a,b)=>a.fecha.localeCompare(b.fecha)).map(r=>`<div class="res">📅 <b>${esc(r.fecha)}</b> · 🕓 ${esc(r.hora)} · ${esc(r.tipo)}</div>`).join('')||'<div class="empty">No hay reservas confirmadas.</div>';
+}
+renderCal();
+</script>
+</body>
+</html>
